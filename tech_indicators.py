@@ -200,4 +200,5 @@ wr_14 = read_column('indicators.csv', 'wr_14').get_values()
 d_3 = read_column('indicators.csv', 'kdjd3').get_values()
 k_14 = read_column('indicators.csv', 'kdjk14').get_values()
 
+
 """
