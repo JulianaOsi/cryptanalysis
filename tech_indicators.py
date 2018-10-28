@@ -1,5 +1,6 @@
 import requests
 import csv
+import numpy
 
 from datetime import datetime
 
@@ -74,15 +75,8 @@ df = StockDataFrame.retype(df)
 df['macd'] = df.get('macd') # calculate MACD
 df['rsi_14'] = df.get('rsi_14')
 df['wr_14'] = df.get('wr_14')
-df['kdjk3'] = df.get('kdjk_3')
 df['kdjd3'] = df.get('kdjd_3')
-df['kdjj3'] = df.get('kdjj_3')
 df['kdjk14'] = df.get('kdjk_14')
-df['kdjd14'] = df.get('kdjd_14')
-df['kdjj14'] = df.get('kdjj_14')
-df['trix'] = df.get('trix')
-df['adx'] = df.get('adx')
-df['cci'] = df.get('cci')
 
 #########################################
 
@@ -152,14 +146,6 @@ def get_trends(closing_price, close_15_sma):
             result.append('no')
     return result
 
-close = read_column('indicators.csv', 'close')
-close_15_sma = read_column('indicators.csv', 'close_15_sma')
-
-
-close_vals = close.get_values()
-close_15_sma_vals = close_15_sma.get_values()
-trends = get_trends(close_vals, close_15_sma_vals)
-
 def get_trading_signals(closing_price, trends):
     TR = []
     for i in range(len(trends)):
@@ -167,18 +153,51 @@ def get_trading_signals(closing_price, trends):
         for a in range(3):
             if i + a < len(trends):
                 cp.append(closing_price[i + a])
+        if max(cp) - min(cp) == 0.0:
+            TR.append(0.0)
+            continue
         if trends[i] == "up":
-            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp))* 0.5 + 0.5)
+            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp)) * 0.5 + 0.5)
         else:
-            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp))* 0.5)
+            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp)) * 0.5)
     return TR
 
-tradin_signals = get_trading_signals(close_vals, trends)
+def write_data_to_csv(filename, columns_names, data, rows_amount):
+    with open(filename, "w", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=columns_names, delimiter=";", lineterminator='\n')
+        writer.writeheader()
+        for i in range(rows_amount):
+            d = {}
+            for index in range(len(columns_names)):
+                pair = {columns_names[index]: data[index][i]}
+                d.update(pair)
 
-with open("trends.csv", "w", newline="") as csv_file:
-    columns = ["Time series", "Closing price", "MA", "Trend", "Trading signal"]
-    writer = csv.DictWriter(csv_file, fieldnames=columns, delimiter=";", lineterminator='\n')
-    writer.writeheader()
-    for i in range(len(trends)):
-        line = {"Time series": i+1, "Closing price": close_vals[i], "MA": close_15_sma_vals[i], "Trend": trends[i], "Trading signal": tradin_signals[i]}
-        writer.writerow(line)
+            writer.writerow(d)
+
+
+close = read_column('indicators.csv', 'close').get_values()
+close_15_sma = read_column('indicators.csv', 'close_15_sma').get_values()
+trends = get_trends(close, close_15_sma)
+trading_signals = get_trading_signals(close, trends)
+numbers_of_rows = numpy.arange(1, len(close)+1)
+
+data = [numbers_of_rows,
+        close,
+        close_15_sma,
+        trends,
+        trading_signals]
+
+columns = ["Time series", "Closing price", "MA", "Trend", "Trading signal"]
+
+write_data_to_csv("test.csv", columns, data, len(numbers_of_rows))
+
+"""
+
+import sklearn.feature_selection as fs
+macd = read_column('indicators.csv', 'macd').get_values()
+rsi_14 = read_column('indicators.csv', 'rsi_14').get_values()
+wr_14 = read_column('indicators.csv', 'wr_14').get_values()
+d_3 = read_column('indicators.csv', 'kdjd3').get_values()
+k_14 = read_column('indicators.csv', 'kdjk14').get_values()
+
+"""
