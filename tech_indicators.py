@@ -1,14 +1,14 @@
+import requests
+import csv
+
+from datetime import datetime
+
+import pandas as pd
+
 from_symbol = 'BTC'
 to_symbol = 'USD'
 exchange = 'Bitstamp'
 datetime_interval = 'day'
-
-import requests
-from datetime import datetime
-
-import pandas as pd
-import numpy as np
-
 
 def get_filename(from_symbol, to_symbol, exchange, datetime_interval, download_date):
     return '%s_%s_%s_%s_%s.csv' % (from_symbol, to_symbol, exchange, datetime_interval, download_date)
@@ -88,13 +88,97 @@ df['cci'] = df.get('cci')
 
 df['close_15_sma'] = df.get('close_15_sma')
 
-df.to_csv("trends.csv", index=True, sep=';')
+df.to_csv("indicators.csv", index=True, sep=';')
 
 
 def read_column(filename, header):
     column = pd.read_csv(filename, sep=';')
     return column[header]
 
-column = read_column ('BTC_USD_Bitstamp_day_2018-10-25.csv','low')
-print (column)
+def sma_trend(column, index):
+    counter_rise = 0
+    counter_fall = 0
 
+    for i in range(4):
+        if column[index] < column[index + 1]:
+            counter_fall = 0
+            counter_rise += 1
+        elif column[index] > column[index + 1]:
+            counter_rise = 0
+            counter_fall += 1
+        elif column[index] == column[index + 1]:
+            counter_rise += 1
+            counter_fall += 1
+        index += 1
+    if counter_rise == 4 and counter_fall != 4:
+        return 1
+    elif counter_fall == 4 and counter_rise != 4:
+        return -1
+    else:
+        return 0
+
+def close_trend(column_close, column_sma, index):
+    close_leads = 0
+    close_lags = 0
+
+    for i in range(5):
+        if column_close[index] < column_sma[index]:
+            close_leads = 0
+            close_lags += 1
+        elif column_close[index] > column_sma[index]:
+            close_lags = 0
+            close_leads += 1
+        elif column_close[index] == column_sma[index]:
+            close_lags += 1
+            close_leads += 1
+        index += 1
+    if close_leads == 5 and close_lags != 5:
+        return 1
+    elif close_lags == 5 and close_leads != 5:
+        return -1
+    else:
+        return 0
+
+def get_trends(closing_price, close_15_sma):
+    result = []
+    for index in range(len(closing_price)):
+        if index == 0:
+            index = 4
+        if close_trend(closing_price, close_15_sma, index - 4) == 1 and sma_trend(close_15_sma, index - 4) == 1:
+            result.append('up')
+        elif close_trend(closing_price, close_15_sma, index - 4) == -1 and sma_trend(close_15_sma, index - 4) == -1:
+            result.append('down')
+        else:
+            result.append('no')
+    return result
+
+close = read_column('indicators.csv', 'close')
+close_15_sma = read_column('indicators.csv', 'close_15_sma')
+
+
+close_vals = close.get_values()
+close_15_sma_vals = close_15_sma.get_values()
+trends = get_trends(close_vals, close_15_sma_vals)
+
+def get_trading_signals(closing_price, trends):
+    TR = []
+    for i in range(len(trends)):
+        cp = []
+        for a in range(3):
+            if i + a < len(trends):
+                cp.append(closing_price[i + a])
+        if trends[i] == "up":
+            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp))* 0.5 + 0.5)
+        else:
+            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp))* 0.5)
+    return TR
+
+tradin_signals = get_trading_signals(close_vals, trends)
+
+with open("trends.csv", "w", newline="") as csv_file:
+    columns = ["Time series", "Closing price", "MA", "Trend", "Trading signal"]
+    writer = csv.DictWriter(csv_file, fieldnames=columns, delimiter=";", lineterminator='\n')
+    writer.writeheader()
+    for i in range(len(trends)):
+        line = {"Time series": i+1, "Closing price": close_vals[i], "MA": close_15_sma_vals[i], "Trend": trends[i], "Trading signal": tradin_signals[i]}
+        writer.writerow(line)
