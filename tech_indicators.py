@@ -147,20 +147,29 @@ def get_trends(closing_price, close_15_sma):
     return result
 
 def get_trading_signals(closing_price, trends):
-    TR = []
+    data = normalize_data(closing_price)
     for i in range(len(trends)):
+        data[i] *= 0.5
+        if trends[i] == "up":
+            data[i] += 0.5
+    return data
+
+def normalize_data(data):
+    result = []
+    for i in range(len(data)):
         cp = []
         for a in range(3):
-            if i + a < len(trends):
-                cp.append(closing_price[i + a])
+            if i + a < len(data):
+                cp.append(data[i + a])
         if max(cp) - min(cp) == 0.0:
-            TR.append(0.0)
+            result.append(0.0)
             continue
-        if trends[i] == "up":
-            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp)) * 0.5 + 0.5)
+        value = (data[i] - min(cp))/(max(cp) - min(cp))
+        if numpy.isnan(value):
+            result.append(0.0)
         else:
-            TR.append((closing_price[i] - min(cp))/(max(cp) - min(cp)) * 0.5)
-    return TR
+            result.append(value)
+    return result
 
 def write_data_to_csv(filename, columns_names, data, rows_amount):
     with open(filename, "w", newline="") as csv_file:
@@ -179,26 +188,28 @@ close = read_column('indicators.csv', 'close').get_values()
 close_15_sma = read_column('indicators.csv', 'close_15_sma').get_values()
 trends = get_trends(close, close_15_sma)
 trading_signals = get_trading_signals(close, trends)
+
+ma_15 = normalize_data(close_15_sma)
+macd = normalize_data(read_column('indicators.csv', 'macd').get_values())
+rsi_14 = normalize_data(read_column('indicators.csv', 'rsi_14').get_values())
+wr_14 = normalize_data(read_column('indicators.csv', 'wr_14').get_values())
+d_3 = normalize_data(read_column('indicators.csv', 'kdjd3').get_values())
+k_14 = normalize_data(read_column('indicators.csv', 'kdjk14').get_values())
+
 numbers_of_rows = numpy.arange(1, len(close)+1)
 
 data = [numbers_of_rows,
         close,
-        close_15_sma,
+        ma_15,
+        macd,
+        rsi_14,
+        wr_14,
+        d_3,
+        k_14,
         trends,
         trading_signals]
 
-columns = ["Time series", "Closing price", "MA", "Trend", "Trading signal"]
+columns = ["Time series", "Closing price", "MA-15", "MACD-26", "RSI-14", "WR-14", "D-3", "K-14", "Trend", "Trading signals"]
 
-write_data_to_csv("test.csv", columns, data, len(numbers_of_rows))
+write_data_to_csv("data.csv", columns, data, len(numbers_of_rows))
 
-"""
-
-import sklearn.feature_selection as fs
-macd = read_column('indicators.csv', 'macd').get_values()
-rsi_14 = read_column('indicators.csv', 'rsi_14').get_values()
-wr_14 = read_column('indicators.csv', 'wr_14').get_values()
-d_3 = read_column('indicators.csv', 'kdjd3').get_values()
-k_14 = read_column('indicators.csv', 'kdjk14').get_values()
-
-
-"""
